@@ -1,0 +1,641 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Public Chat (Demo) - Samith</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+        :root{
+            --bg:#0f1724; --panel:#0b1220; --accent:#7c6cff; --muted:#9aa5b1; --card:#0e1724;
+            --glass: rgba(255,255,255,0.03);
+        }
+        *{box-sizing:border-box}
+        body {font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif; margin:0; height:100vh; display:flex; background: linear-gradient(180deg,#071025 0%, #062234 100%); color:#e6eef6;}
+        #sidebar {width:340px; padding:18px; box-sizing:border-box; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-right:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; gap:12px;}
+        #main {flex:1; display:flex; flex-direction:column; min-width:0;}
+        h4 {margin:6px 0; color:#fff;}
+        .section {margin-bottom:6px;}
+        input, button, select, textarea {font:inherit; padding:10px 12px; margin:6px 0; border-radius:10px; border:1px solid rgba(255,255,255,0.06); background:var(--card); color:inherit; outline:none;}
+        button {cursor:pointer; background:linear-gradient(90deg,var(--accent),#5ad3ff); border:none; color:#031025; font-weight:600;}
+        .muted {font-size:12px; color:var(--muted);}
+        #chats {height:38vh; overflow:auto; padding:10px; background:transparent; border-radius:12px;}
+        .chatItem {display:flex; gap:10px; align-items:center; padding:10px; border-radius:10px; cursor:pointer; background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent); border:1px solid rgba(255,255,255,0.02);}
+        .chatItem:hover {transform:translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.4);}
+        .chatItem .meta {font-size:13px; color:#dfe9f5;}
+        .chatItem .sub {font-size:12px; color:var(--muted);}
+        .ownerBadge {background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:999px; font-size:11px; color:var(--accent); margin-left:auto;}
+        #friendsList {max-height:20vh; overflow:auto;}
+        .friend {display:flex; gap:10px; align-items:center; padding:8px; border-radius:8px; background:rgba(255,255,255,0.01); margin-bottom:6px;}
+        .avatar {width:40px;height:40px;border-radius:8px;background:linear-gradient(90deg,#3b82f6,#9333ea);display:flex;align-items:center;justify-content:center;font-weight:700;color:white;}
+        #headerBar {display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.03); background: linear-gradient(90deg, rgba(255,255,255,0.01), transparent);}
+        #topInfo {display:flex; gap:12px; align-items:center;}
+        #currentChatTitle {font-size:18px; font-weight:700;}
+        #controls {display:flex; gap:8px; align-items:center;}
+        #messages {flex:1; padding:20px; overflow:auto; background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));}
+        .msg {padding:12px; border-radius:12px; margin-bottom:12px; background:linear-gradient(180deg,#0b1630,#071226); max-width:75%; box-shadow: 0 6px 18px rgba(2,6,23,0.5);}
+        .msg.me {background:linear-gradient(90deg,#183b6c,#0f6bff); color:white; margin-left:auto;}
+        .msg .metaSmall {font-size:12px; color:var(--muted); margin-bottom:6px;}
+        .msg .text {white-space:pre-wrap; line-height:1.35;}
+        .msg img.chat-image {max-width:360px; border-radius:10px; display:block; margin-top:8px; box-shadow: 0 8px 20px rgba(2,6,23,0.5);}
+        .msg audio, .msg video {display:block; margin-top:8px; max-width:360px; border-radius:8px;}
+        #composer {display:flex; gap:12px; padding:14px; border-top:1px solid rgba(255,255,255,0.03); background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent);}
+        #composer textarea {flex:1; height:64px; resize:none; border-radius:12px; background:transparent; border:1px solid rgba(255,255,255,0.04); color:inherit; padding:12px;}
+        .small {font-size:12px; color:var(--muted);}
+        .moderator {background:linear-gradient(90deg,#2b2b2b,#332b16); border:1px solid rgba(255,200,120,0.05);}
+        .hidden {display:none;}
+        .member-list {display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+        .member-pill {padding:6px 10px; border-radius:999px; background:rgba(255,255,255,0.02); font-size:13px;}
+        .actionLink {background:transparent;border:0;color:#7cc7ff;cursor:pointer;padding:6px 8px;border-radius:6px;}
+        .danger {background:linear-gradient(90deg,#ff6b6b,#ff8a8a); color:#081121;}
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div id="auth" class="section">
+            <div id="signedOutUI">
+                <input id="email" placeholder="Email (demo)" />
+                <input id="password" placeholder="Password" type="password" />
+                <div style="display:flex; gap:8px;">
+                    <button id="createBtn">Create Account</button>
+                    <button id="signInBtn">Sign In</button>
+                </div>
+                <div class="small">Demo: Google Sign-In requires server-side OAuth. Replace placeholder with real Google Sign-In.</div>
+                <button id="googleSignIn" class="small">Sign in with Google (placeholder)</button>
+            </div>
+            <div id="signedInUI" class="hidden">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div class="avatar" id="meAvatar">U</div>
+                    <div>
+                        <div style="font-weight:700;" id="meEmail"></div>
+                        <div class="small" id="moderatorLabel">Moderator: msaifparrakkal (gmail)</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <button id="signOutBtn">Sign Out</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Rules (Samith)</h4>
+            <div class="rules" id="rulesBox" style="background:var(--glass); padding:10px; border-radius:10px;">
+                <div class="rule-item">1. No profanity or "bad words". Messages containing banned words will be blocked.</div>
+                <div class="rule-item">2. No harassment, hate, NSFW content or spam.</div>
+                <div class="rule-item">3. Photos and images are allowed; keep them appropriate.</div>
+                <div class="rule-item">4. Chat creators are moderators of their chats and can remove messages or ban users.</div>
+            </div>
+            <div class="small">By using this chat you accept these rules.</div>
+        </div>
+
+        <div class="section">
+            <h4>Friends</h4>
+            <input id="friendEmail" placeholder="Friend email" />
+            <div style="display:flex; gap:8px;">
+                <button id="addFriendBtn">Add Friend</button>
+                <button id="inviteFriendToChatBtn" class="actionLink">Invite to current chat</button>
+            </div>
+            <div id="friendsList" class="small"></div>
+        </div>
+
+        <div class="section">
+            <h4>Chats</h4>
+            <input id="chatName" placeholder="New chat name" />
+            <div style="display:flex; gap:8px;">
+                <button id="createChatBtn">Create Chat</button>
+                <button id="joinPublicBtn" class="actionLink">Join Public</button>
+            </div>
+            <div id="chats" role="list"></div>
+        </div>
+        <div class="small">Tip: Creator of a chat becomes its moderator.</div>
+    </div>
+
+    <div id="main">
+        <div id="headerBar">
+            <div id="topInfo">
+                <div style="display:flex; flex-direction:column;">
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <strong id="currentChatTitle">Samith</strong>
+                        <div class="ownerBadge" id="chatOwnerBadge">owner</div>
+                    </div>
+                    <div class="small" id="currentChatId">Chat ID: samith</div>
+                </div>
+                <div style="margin-left:10px;">
+                    <div class="member-list" id="currentMembers"></div>
+                </div>
+            </div>
+            <div id="controls">
+                <button id="startRoomBtn">Start Video Meet</button>
+                <button id="joinRoomBtn" class="actionLink">Join Room</button>
+                <button id="startCallBtn" class="actionLink">Start Call</button>
+                <button id="sendVoicemailBtn" class="actionLink">Send voicemail (placeholder)</button>
+            </div>
+        </div>
+
+        <div id="messages" aria-live="polite"></div>
+
+        <div id="composer">
+            <textarea id="textInput" placeholder="Write a message..."></textarea>
+            <div style="display:flex; flex-direction:column; gap:8px; width:220px;">
+                <input id="fileInput" type="file" accept="image/*,video/*,audio/*" />
+                <div style="display:flex; gap:8px;">
+                    <button id="recordBtn">Record Voice</button>
+                    <button id="sendBtn">Send</button>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <input id="addMemberInput" placeholder="Add member email" />
+                    <button id="addMemberBtn">Add</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="webrtcUI" class="section hidden" style="padding:12px; border-top:1px solid rgba(255,255,255,0.02);">
+            <div style="display:flex; gap:12px;">
+                <div>
+                    <h4 style="margin:6px 0;">Local</h4>
+                    <video id="localVideo" autoplay muted playsinline style="width:320px; height:240px; background:#000; border-radius:8px;"></video>
+                </div>
+                <div>
+                    <h4 style="margin:6px 0;">Remote</h4>
+                    <video id="remoteVideo" autoplay playsinline style="width:320px; height:240px; background:#000; border-radius:8px;"></video>
+                </div>
+            </div>
+            <button id="endCallBtn" style="margin-top:8px;">End Call</button>
+        </div>
+    </div>
+
+<script>
+/*
+  Single-file demo chat:
+  - LocalStorage + BroadcastChannel for cross-tab demo (no server).
+  - Creator of a chat is set as the chat moderator automatically.
+  - Members are per-chat. Only members can post. Moderators can delete messages & ban (global demo ban).
+  - Google Sign-In & Gmail voicemail are placeholders (require server OAuth).
+  - This demo is for local testing only; sensitive features need server-side implementation in production.
+*/
+
+const MODERATOR_EMAIL = 'msaifparrakkal@gmail.com';
+const BAD_WORDS = ['badword1','badword2','spamword'];
+
+// load DB with backwards compatibility
+const db = {
+    users: JSON.parse(localStorage.getItem('demo_users') || '{}'),
+    chats: JSON.parse(localStorage.getItem('demo_chats') || '{}'),
+    friends: JSON.parse(localStorage.getItem('demo_friends') || '{}'),
+    bans: JSON.parse(localStorage.getItem('demo_bans') || '[]')
+};
+function saveDB(){ localStorage.setItem('demo_users', JSON.stringify(db.users)); localStorage.setItem('demo_chats', JSON.stringify(db.chats)); localStorage.setItem('demo_friends', JSON.stringify(db.friends)); localStorage.setItem('demo_bans', JSON.stringify(db.bans)); }
+
+// default chat creation
+if (!db.chats['samith']) {
+    db.chats['samith'] = { id:'samith', name:'Samith', owner: null, members: [], moderators: [], messages: [] };
+    saveDB();
+}
+
+// Session
+let currentUser = JSON.parse(sessionStorage.getItem('demo_currentUser') || 'null');
+
+// Elements
+const emailEl = document.getElementById('email'), passwordEl = document.getElementById('password');
+const signInBtn = document.getElementById('signInBtn'), createBtn = document.getElementById('createBtn');
+const googleSignIn = document.getElementById('googleSignIn'), signOutBtn = document.getElementById('signOutBtn');
+const signedOutUI = document.getElementById('signedOutUI'), signedInUI = document.getElementById('signedInUI'), meEmail = document.getElementById('meEmail'), meAvatar = document.getElementById('meAvatar');
+
+const friendEmail = document.getElementById('friendEmail'), addFriendBtn = document.getElementById('addFriendBtn'), friendsList = document.getElementById('friendsList');
+const inviteFriendToChatBtn = document.getElementById('inviteFriendToChatBtn');
+
+const chatName = document.getElementById('chatName'), createChatBtn = document.getElementById('createChatBtn'), chatsDiv = document.getElementById('chats');
+const joinPublicBtn = document.getElementById('joinPublicBtn');
+
+const messagesDiv = document.getElementById('messages'), currentChatTitle = document.getElementById('currentChatTitle'), currentChatIdEl = document.getElementById('currentChatId');
+const textInput = document.getElementById('textInput'), sendBtn = document.getElementById('sendBtn'), fileInput = document.getElementById('fileInput');
+const recordBtn = document.getElementById('recordBtn');
+const startRoomBtn = document.getElementById('startRoomBtn'), joinRoomBtn = document.getElementById('joinRoomBtn'), startCallBtn = document.getElementById('startCallBtn');
+const webrtcUI = document.getElementById('webrtcUI'), localVideo = document.getElementById('localVideo'), remoteVideo = document.getElementById('remoteVideo'), endCallBtn = document.getElementById('endCallBtn');
+const sendVoicemailBtn = document.getElementById('sendVoicemailBtn');
+
+const addMemberInput = document.getElementById('addMemberInput'), addMemberBtn = document.getElementById('addMemberBtn');
+const currentMembersDiv = document.getElementById('currentMembers');
+const chatOwnerBadge = document.getElementById('chatOwnerBadge');
+
+let currentChatId = 'samith';
+if (!db.chats[currentChatId].owner) db.chats[currentChatId].owner = MODERATOR_EMAIL; // existing default owner for demo
+if (!db.chats[currentChatId].members.includes(MODERATOR_EMAIL)) {
+    db.chats[currentChatId].members.push(MODERATOR_EMAIL);
+    db.chats[currentChatId].moderators = db.chats[currentChatId].moderators || [];
+    if (!db.chats[currentChatId].moderators.includes(MODERATOR_EMAIL)) db.chats[currentChatId].moderators.push(MODERATOR_EMAIL);
+    saveDB();
+}
+
+// BroadcastChannel for demo messaging & signaling
+const bc = new BroadcastChannel('demo-chat');
+bc.onmessage = (ev) => {
+    if (ev.data?.type === 'message') {
+        storeMessage(ev.data.message, false);
+        renderMessages();
+    } else if (ev.data?.type === 'update') {
+        // reload DB from storage for cross-tab sync
+        Object.assign(db, {
+            users: JSON.parse(localStorage.getItem('demo_users') || '{}'),
+            chats: JSON.parse(localStorage.getItem('demo_chats') || '{}'),
+            friends: JSON.parse(localStorage.getItem('demo_friends') || '{}'),
+            bans: JSON.parse(localStorage.getItem('demo_bans') || '[]')
+        });
+        renderChats(); renderMessages(); renderFriends();
+    } else if (ev.data?.type === 'signal' && ev.data.room) {
+        webRTCHandleSignal(ev.data.room, ev.data.payload, ev.data.from);
+    }
+};
+
+// auth helpers
+function setCurrentUser(u){ currentUser = u; sessionStorage.setItem('demo_currentUser', JSON.stringify(u)); refreshAuthUI(); }
+function refreshAuthUI(){
+    if (currentUser){
+        signedOutUI.classList.add('hidden'); signedInUI.classList.remove('hidden');
+        meEmail.textContent = currentUser.email;
+        meAvatar.textContent = (currentUser.email || 'U').charAt(0).toUpperCase();
+    } else {
+        signedOutUI.classList.remove('hidden'); signedInUI.classList.add('hidden');
+    }
+    renderFriends(); renderChats(); renderMessages();
+}
+createBtn.onclick = () => {
+    const email = emailEl.value.trim().toLowerCase(), pw = passwordEl.value;
+    if (!email || !pw){ alert('enter email and password'); return; }
+    if (db.users[email]){ alert('user exists'); return; }
+    db.users[email] = { email, pw, created:Date.now() }; saveDB();
+    setCurrentUser({ email });
+};
+signInBtn.onclick = () => {
+    const email = emailEl.value.trim().toLowerCase(), pw = passwordEl.value;
+    if (!db.users[email] || db.users[email].pw !== pw){ alert('invalid'); return; }
+    setCurrentUser({ email });
+};
+signOutBtn.onclick = () => { setCurrentUser(null); sessionStorage.removeItem('demo_currentUser'); };
+googleSignIn.onclick = ()=>{ alert('Google Sign-In is a placeholder. Integrate OAuth2 on server and use Google APIs.'); };
+
+// Friends & chats
+function renderFriends(){
+    friendsList.innerHTML = '';
+    const list = db.friends[currentUser?.email] || [];
+    if (list.length===0) {
+        friendsList.innerHTML = '<div class="small">No friends yet.</div>';
+        return;
+    }
+    list.forEach(f => {
+        const d = document.createElement('div'); d.className='friend';
+        d.innerHTML = `<div class="avatar">${(f||'?').charAt(0).toUpperCase()}</div>
+            <div style="flex:1">
+                <div style="font-weight:600;">${f}</div>
+                <div class="small">Click to invite or start PM</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+                <button class="actionLink" title="Invite to chat">Invite</button>
+            </div>`;
+        d.querySelector('.actionLink').onclick = ()=> { inviteToChat(f); };
+        friendsList.appendChild(d);
+    });
+}
+addFriendBtn.onclick = () => {
+    if (!currentUser){ alert('sign in'); return; }
+    const f = friendEmail.value.trim().toLowerCase(); if (!f) return;
+    db.friends[currentUser.email] = db.friends[currentUser.email] || []; if (!db.friends[currentUser.email].includes(f)) db.friends[currentUser.email].push(f);
+    saveDB(); renderFriends(); friendEmail.value='';
+};
+
+inviteFriendToChatBtn.onclick = ()=> {
+    if (!currentUser){ alert('sign in'); return; }
+    const list = db.friends[currentUser.email] || [];
+    if (!list.length) { alert('No friends to invite'); return; }
+    const f = prompt('Enter friend email to invite to current chat:', list[0]);
+    if (f) inviteToChat(f.trim().toLowerCase());
+};
+
+function inviteToChat(email){
+    if (!db.chats[currentChatId]) return alert('Select a chat');
+    if (!currentUser) return alert('sign in');
+    if (!isChatModerator(currentUser.email, currentChatId)) return alert('Only chat moderators can invite members');
+    addMemberToChat(email, currentChatId);
+    alert('Invited '+email+' to chat');
+}
+
+function renderChats(){
+    chatsDiv.innerHTML='';
+    Object.values(db.chats).forEach(c=>{
+        const d = document.createElement('div'); d.className='chatItem';
+        const ownerLabel = (c.owner? `<div class="ownerBadge" style="margin-left:auto">${c.owner===currentUser?.email? 'you (owner)':'owner'}</div>` : '');
+        d.innerHTML = `<div style="display:flex; gap:10px; align-items:center;">
+                         <div class="avatar">${(c.name||'C').charAt(0).toUpperCase()}</div>
+                         <div>
+                           <div class="meta">${c.name}</div>
+                           <div class="sub">${(c.members||[]).length} members • ${c.id}</div>
+                         </div>
+                       </div>
+                       ${ownerLabel}`;
+        d.onclick = ()=>{ selectChat(c.id); };
+        if (c.id===currentChatId) d.style.boxShadow='0 8px 30px rgba(0,0,0,0.6)';
+        chatsDiv.appendChild(d);
+    });
+}
+
+createChatBtn.onclick = ()=> {
+    if (!currentUser){ alert('sign in to create chat'); return; }
+    const name = chatName.value.trim() || 'Chat '+Date.now();
+    const id = 'chat_'+Math.random().toString(36).slice(2,9);
+    db.chats[id] = { id, name, owner: currentUser.email, members: [currentUser.email], moderators:[currentUser.email], messages:[] };
+    saveDB(); renderChats(); chatName.value='';
+    bc.postMessage({ type:'update' });
+};
+
+joinPublicBtn.onclick = ()=> {
+    const id = prompt('Enter chat ID to join:');
+    if (!id) return;
+    const chat = db.chats[id];
+    if (!chat) return alert('Chat not found');
+    if (!currentUser) return alert('sign in to join');
+    if (!chat.members.includes(currentUser.email)) {
+        chat.members.push(currentUser.email);
+        saveDB(); bc.postMessage({ type:'update' });
+    }
+    selectChat(id);
+};
+
+function selectChat(id){
+    currentChatId = id;
+    const c = db.chats[id];
+    currentChatTitle.textContent = c.name;
+    currentChatIdEl.textContent = 'Chat ID: '+c.id;
+    chatOwnerBadge.style.display = c.owner ? 'inline-block' : 'none';
+    chatOwnerBadge.textContent = c.owner === currentUser?.email ? 'owner' : 'owner';
+    renderChats(); renderMessages(); renderCurrentMembers();
+}
+
+// messages
+function storeMessage(msg, broadcast=true){
+    db.chats[msg.chatId] = db.chats[msg.chatId] || { id:msg.chatId, name:msg.chatId, messages:[], members:[], moderators:[] };
+    db.chats[msg.chatId].messages.push(msg); saveDB();
+    if (broadcast) bc.postMessage({ type:'message', message:msg });
+    // notify other tabs to refresh UI
+    bc.postMessage({ type:'update' });
+}
+function containsBadWord(text){
+    if (!text) return false;
+    const s = text.toLowerCase();
+    return BAD_WORDS.some(b=> s.includes(b));
+}
+sendBtn.onclick = () => {
+    if (!currentUser){ alert('sign in'); return; }
+    if (db.bans.includes(currentUser.email)){ alert('banned'); return; }
+    const chat = db.chats[currentChatId];
+    if (!chat) return alert('select chat');
+    if (!chat.members.includes(currentUser.email)) return alert('You are not a member of this chat');
+    const text = textInput.value.trim(); if (!text) return;
+    if (containsBadWord(text)) return alert('Message contains banned words.');
+    const msg = { id: 'm_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), chatId:currentChatId, from:currentUser.email, type:'text', text, ts:Date.now() };
+    storeMessage(msg);
+    textInput.value='';
+    renderMessages();
+};
+fileInput.onchange = async (ev) => {
+    if (!currentUser){ alert('sign in'); return; }
+    const chat = db.chats[currentChatId];
+    if (!chat.members.includes(currentUser.email)) return alert('You are not a member of this chat');
+    const f = ev.target.files[0]; if (!f) return;
+    const reader = new FileReader(); reader.onload = ()=> {
+        const data = reader.result;
+        let type = 'file';
+        if (data.startsWith('data:image')) type='image';
+        else if (data.startsWith('data:video')) type='video';
+        else if (data.startsWith('data:audio')) type='audio';
+        const msg = { id:'m_'+Date.now(), chatId:currentChatId, from:currentUser.email, type, data, fileName:f.name, ts:Date.now() };
+        storeMessage(msg);
+        renderMessages();
+    };
+    reader.readAsDataURL(f);
+};
+
+// recording
+let mediaRecorder, chunks=[];
+recordBtn.onclick = async () => {
+    if (!currentUser){ alert('sign in'); return; }
+    const chat = db.chats[currentChatId];
+    if (!chat.members.includes(currentUser.email)) return alert('You are not a member of this chat');
+    if (!mediaRecorder || mediaRecorder.state === 'inactive'){
+        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        mediaRecorder = new MediaRecorder(stream);
+        chunks = [];
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const reader = new FileReader(); reader.onload = () => {
+                const dataUrl = reader.result;
+                const msg = { id:'m_'+Date.now(), chatId:currentChatId, from:currentUser.email, type:'audio', data: dataUrl, ts:Date.now() };
+                storeMessage(msg); renderMessages();
+            };
+            reader.readAsDataURL(blob);
+        };
+        mediaRecorder.start();
+        recordBtn.textContent='Stop Recording';
+    } else {
+        mediaRecorder.stop();
+        recordBtn.textContent='Record Voice';
+    }
+};
+
+// message rendering and moderation
+function isChatModerator(email, chatId){
+    if (!email) return false;
+    if (email === MODERATOR_EMAIL) return true;
+    const c = db.chats[chatId];
+    return c && c.moderators && c.moderators.includes(email);
+}
+function isChatMember(email, chatId){
+    const c = db.chats[chatId];
+    return c && c.members && c.members.includes(email);
+}
+
+function renderMessages(){
+    messagesDiv.innerHTML=''; const chat = db.chats[currentChatId] || {messages:[]};
+    chat.messages.forEach(m=>{
+        // skip messages from non-members? we keep for history
+        const el = document.createElement('div'); el.className='msg ' + (m.from===currentUser?.email? 'me':'');
+        const header = document.createElement('div'); header.className='metaSmall'; header.textContent = m.from + ' • ' + new Date(m.ts).toLocaleString();
+        el.appendChild(header);
+        if (m.type==='text') { const t = document.createElement('div'); t.className='text'; t.textContent = m.text; el.appendChild(t); }
+        else if (m.type==='audio') {
+            const a = document.createElement('audio'); a.controls=true; a.src = m.data; el.appendChild(a);
+        } else if (m.type==='image') {
+            const img = document.createElement('img'); img.className = 'chat-image'; img.src = m.data; el.appendChild(img);
+        } else if (m.type==='video') {
+            const v = document.createElement('video'); v.controls=true; v.src = m.data; el.appendChild(v);
+        } else if (m.type==='file') {
+            const link = document.createElement('a'); link.href = m.data; link.textContent = m.fileName || 'file'; link.target='_blank'; el.appendChild(link);
+        }
+
+        // moderation controls for moderators
+        if (isChatModerator(currentUser?.email, currentChatId)){
+            const modRow = document.createElement('div'); modRow.style.marginTop='8px';
+            const delBtn = document.createElement('button'); delBtn.textContent='Delete'; delBtn.className='actionLink';
+            delBtn.onclick = ()=>{ if (confirm('Delete this message?')) { deleteMessage(m.id, currentChatId); } };
+            const banBtn = document.createElement('button'); banBtn.textContent='Ban user'; banBtn.className='actionLink';
+            banBtn.onclick = ()=>{ if (confirm('Ban user globally?')) { db.bans.push(m.from); saveDB(); bc.postMessage({type:'update'}); alert(m.from+' banned (demo global ban)'); }};
+            modRow.appendChild(delBtn); modRow.appendChild(banBtn);
+            el.appendChild(modRow);
+        }
+
+        if (db.bans.includes(m.from)) el.classList.add('moderator');
+        messagesDiv.appendChild(el);
+    });
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function deleteMessage(msgId, chatId){
+    const c = db.chats[chatId];
+    if (!c) return;
+    c.messages = c.messages.filter(m=>m.id !== msgId);
+    saveDB();
+    bc.postMessage({type:'update'});
+    renderMessages();
+}
+
+// member management
+function addMemberToChat(email, chatId){
+    const c = db.chats[chatId];
+    if (!c) return;
+    email = email.toLowerCase();
+    if (!c.members.includes(email)) c.members.push(email);
+    // optionally add as user in DB
+    if (!db.users[email]) db.users[email] = { email, created:Date.now() };
+    saveDB();
+    bc.postMessage({ type:'update' });
+    renderCurrentMembers();
+}
+function removeMemberFromChat(email, chatId){
+    const c = db.chats[chatId];
+    if (!c) return;
+    c.members = (c.members||[]).filter(x=>x!==email);
+    c.moderators = (c.moderators||[]).filter(x=>x!==email);
+    saveDB();
+    bc.postMessage({ type:'update' });
+    renderCurrentMembers();
+}
+function makeModerator(email, chatId){
+    const c = db.chats[chatId];
+    if (!c) return;
+    if (!c.moderators) c.moderators=[];
+    if (!c.moderators.includes(email)) c.moderators.push(email);
+    saveDB(); bc.postMessage({ type:'update' }); renderCurrentMembers();
+}
+function renderCurrentMembers(){
+    currentMembersDiv.innerHTML='';
+    const c = db.chats[currentChatId] || { members:[], owner:null, moderators:[] };
+    (c.members || []).forEach(m=>{
+        const pill = document.createElement('div'); pill.className='member-pill';
+        pill.textContent = m + (c.owner===m? ' (owner)' : (c.moderators && c.moderators.includes(m) ? ' (mod)' : ''));
+        // actions if current user is moderator
+        if (isChatModerator(currentUser?.email, currentChatId) && m !== c.owner){
+            const rm = document.createElement('button'); rm.textContent='×'; rm.style.marginLeft='8px'; rm.className='actionLink';
+            rm.onclick = ()=>{ if (confirm('Remove member '+m+' from chat?')) removeMemberFromChat(m, currentChatId); };
+            const mk = document.createElement('button'); mk.textContent='Mod'; mk.className='actionLink';
+            mk.onclick = ()=>{ makeModerator(m, currentChatId); alert(m+' is now moderator'); };
+            pill.appendChild(rm); pill.appendChild(mk);
+        }
+        currentMembersDiv.appendChild(pill);
+    });
+    chatOwnerBadge.style.display = c.owner ? 'inline-block' : 'none';
+    chatOwnerBadge.textContent = c.owner === currentUser?.email ? 'you (owner)' : 'owner';
+}
+
+// add member input button
+addMemberBtn.onclick = ()=> {
+    if (!currentUser) return alert('sign in');
+    if (!isChatModerator(currentUser.email, currentChatId)) return alert('Only chat moderators can add members');
+    const email = addMemberInput.value.trim().toLowerCase();
+    if (!email) return;
+    addMemberToChat(email, currentChatId);
+    addMemberInput.value='';
+    alert('Member added to chat');
+};
+
+// simple webRTC (unchanged basic demo)
+let pc, localStream;
+const roomHandlers = {};
+function webRTCSignal(room, payload){ bc.postMessage({ type:'signal', room, payload, from: currentUser?.email || 'anon' }); }
+function webRTCHandleSignal(room, payload, from){
+    if (roomHandlers[room]) roomHandlers[room](payload, from);
+}
+async function startRoom(){
+    const room = prompt('Enter room id or leave blank to create:') || 'room_'+Math.random().toString(36).slice(2,6);
+    currentRoomId = room; showWebRTCUI(true);
+    await startLocalMedia();
+    setupPeer(room, true);
+    alert('Share room id with others: '+room);
+}
+async function joinRoom(){
+    const room = prompt('Enter room id:'); if (!room) return;
+    currentRoomId = room; showWebRTCUI(true);
+    await startLocalMedia();
+    setupPeer(room, false);
+}
+function showWebRTCUI(show){ webrtcUI.style.display = show? 'block':'none'; }
+async function startLocalMedia(){
+    localStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:true });
+    localVideo.srcObject = localStream;
+}
+let currentRoomId=null;
+function setupPeer(room, isInitiator){
+    pc = new RTCPeerConnection();
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    pc.ontrack = (ev)=>{ remoteVideo.srcObject = ev.streams[0]; };
+    pc.onicecandidate = (ev)=>{ if (ev.candidate) webRTCSignal(room, { type:'ice', candidate: ev.candidate }); };
+    roomHandlers[room] = async (payload, from) => {
+        if (payload.type === 'offer' && !isInitiator){
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+            webRTCSignal(room, { type:'answer', sdp: pc.localDescription });
+        } else if (payload.type === 'answer' && isInitiator){
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        } else if (payload.type === 'ice' && payload.candidate){
+            try { await pc.addIceCandidate(payload.candidate); } catch(e){ console.warn(e); }
+        }
+    };
+    if (isInitiator){
+        pc.createOffer().then(o=>pc.setLocalDescription(o)).then(()=> webRTCSignal(room, { type:'offer', sdp: pc.localDescription }));
+    }
+}
+endCallBtn.onclick = ()=>{ if (pc) pc.close(); pc=null; if (localStream) { localStream.getTracks().forEach(t=>t.stop()); localStream=null; } showWebRTCUI(false); currentRoomId=null; }
+startRoomBtn.onclick = startRoom;
+joinRoomBtn.onclick = joinRoom;
+startCallBtn.onclick = async ()=>{ await startRoom(); };
+
+// Voicemail placeholder
+sendVoicemailBtn.onclick = ()=> {
+    alert('Sending voicemail via Gmail requires server-side integration with Gmail API (OAuth2). This is a placeholder.');
+};
+
+// initial render
+if (!currentUser && db.users && Object.keys(db.users).length>0){
+    // no auto sign-in in demo
+}
+currentChatTitle.textContent = db.chats[currentChatId].name;
+currentChatIdEl.textContent = 'Chat ID: '+currentChatId;
+renderChats();
+refreshAuthUI();
+renderCurrentMembers();
+renderMessages();
+
+// storage sync across same-origin
+window.addEventListener('storage', (e)=>{ if (e.key && e.key.startsWith('demo_')) {
+    Object.assign(db, {
+        users: JSON.parse(localStorage.getItem('demo_users') || '{}'),
+        chats: JSON.parse(localStorage.getItem('demo_chats') || '{}'),
+        friends: JSON.parse(localStorage.getItem('demo_friends') || '{}'),
+        bans: JSON.parse(localStorage.getItem('demo_bans') || '[]')
+    });
+    renderChats(); renderMessages(); renderFriends(); renderCurrentMembers();
+}});
+
+// convenience: when messages updated notify other tabs
+function notifyUpdate(){ bc.postMessage({ type:'update' }); }
+</script>
+</body>
+</html>
